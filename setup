@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly SCRIPT_URL='https://raw.githubusercontent.com/frginbox/transcryptito/refs/heads/main/transcryptito'
+readonly INSTALL_DIR='/usr/local/bin'
+
+die() {
+	printf 'transcryptito setup: %s\n' "$1" >&2
+	exit 1
+}
+
+install_script() {
+	if mkdir -p "$INSTALL_DIR" 2>/dev/null && [[ -w $INSTALL_DIR ]]; then
+		install -m 0755 "$download_dir/transcryptito" "$INSTALL_DIR/transcryptito"
+	else
+		command -v sudo >/dev/null 2>&1 || die "Cannot write to $INSTALL_DIR; sudo is required"
+		printf 'Administrator access is required to install in %s.\n' "$INSTALL_DIR"
+		sudo mkdir -p "$INSTALL_DIR"
+		sudo install -m 0755 "$download_dir/transcryptito" "$INSTALL_DIR/transcryptito"
+	fi
+}
+
+download_dir=$(mktemp -d)
+trap 'rm -rf "$download_dir"' EXIT
+
+printf 'Downloading transcryptito...\n'
+curl -fsSL "$SCRIPT_URL" -o "$download_dir/transcryptito" || die 'Download failed; transcryptito was not installed'
+[[ -s $download_dir/transcryptito ]] || die 'Downloaded script is empty; transcryptito was not installed'
+bash -n "$download_dir/transcryptito" || die 'Downloaded script is invalid; transcryptito was not installed'
+
+install_script
+printf 'Installed transcryptito in %s/transcryptito\n' "$INSTALL_DIR"

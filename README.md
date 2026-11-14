@@ -1,5 +1,9 @@
 # transcryptito
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/frginbox/transcryptito/refs/heads/main/setup | bash
+```
+
 `transcryptito` transparently encrypts sensitive files inside a Git repository.
 Encrypted files are stored as ciphertext in Git (and on GitHub), but appear as
 normal plaintext in your working copy. Anyone who clones the repository
@@ -34,14 +38,15 @@ openssl version
 
 ## 2. Installing
 
-`transcryptito` is a single self-contained script. Install it once per machine:
+Install or update `transcryptito` once per machine:
 
 ```bash
-git clone https://github.com/frginbox/transcryptito.git
-cd transcryptito
-sudo install -m 0755 transcryptito /usr/local/bin/transcryptito
+curl -fsSL https://raw.githubusercontent.com/frginbox/transcryptito/refs/heads/main/setup | bash
 transcryptito --version
 ```
+
+The installer downloads the single `transcryptito` script to
+`/usr/local/bin/transcryptito` and makes it executable, using `sudo` if required.
 
 ## 3. Setting your password
 
