@@ -78,8 +78,14 @@ hook that rejects accidental commits of unencrypted sensitive files.
 If hooks are not enabled in the repository's local Git config, the first
 question is `Enable Git hooks for this repository? [Y/n]`. Pressing Enter
 sets the local `core.hooksPath` to the repository's Git hooks directory,
-overriding global settings such as `/dev/null`. Answering `n` continues
-without installing hooks. `--yes` enables them automatically. Existing
+overriding global settings such as `/dev/null`. Answering `n` asks for a
+second confirmation, warning that global/shared hooks are not recommended.
+Confirming with `y` installs the hook wrapper in the active Git hooks
+directory without setting a local `core.hooksPath`, following upstream
+behavior. The wrapper calls each repository's own `.git/crypt/transcrypt`
+(or its configured `transcrypt.crypt-dir`). Declining the second confirmation
+aborts setup; hooks disabled with `/dev/null` must be enabled before using
+this option. `--yes` enables repository-local hooks automatically. Existing
 custom local hooks paths are preserved.
 
 ## 5. Encrypting files (daily use)

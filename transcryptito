@@ -530,6 +530,19 @@ validate_cipher() {
 	fi
 }
 
+confirm_shared_hooks() {
+	local answer=
+	printf 'Using global/shared Git hooks is not recommended; repository-local hooks are preferred.\n'
+	printf 'Install hooks in %s anyway? [y/N] ' "$GIT_HOOKS"
+	read -r answer
+	if [[ ! $answer =~ $YES_REGEX ]]; then
+		die 1 'configuration has been aborted'
+	fi
+	if [[ ! $GIT_HOOKS || $GIT_HOOKS == /dev/null ]]; then
+		die 1 'Git hooks are disabled; configure an active hooks path or enable repository-local hooks'
+	fi
+}
+
 enable_repo_hooks() {
 	local repo_hooks_config_path
 	repo_hooks_config_path=$(git config --local core.hooksPath 2>/dev/null || true)
@@ -543,7 +556,7 @@ enable_repo_hooks() {
 		read -r answer
 	fi
 	if [[ $answer && ! $answer =~ $YES_REGEX ]]; then
-		GIT_HOOKS=''
+		confirm_shared_hooks
 		return 0
 	fi
 
@@ -674,9 +687,6 @@ save_helper_scripts() {
 save_helper_hooks() {
 	if [[ $rekey ]]; then
 		return 0 # Bypass helper hook installation on rekey
-	fi
-	if [[ ! $GIT_HOOKS ]]; then
-		return 0
 	fi
 
 	# Install pre-commit-crypt hook script
