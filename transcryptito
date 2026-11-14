@@ -123,7 +123,7 @@ gather_repo_metadata() {
 	readonly CRYPT_DIR=$(git config transcrypt.crypt-dir 2>/dev/null || printf '%s/crypt' "${RELATIVE_GIT_DIR}")
 
 	# respect core.hooksPath setting, without trailing slash. Fall back to default hooks dir
-	readonly GIT_HOOKS=$(git config core.hooksPath | sed 's:/*$::' 2>/dev/null || printf "%s/hooks" "${RELATIVE_GIT_DIR}")
+	GIT_HOOKS=$(git config core.hooksPath | sed 's:/*$::' 2>/dev/null || printf "%s/hooks" "${RELATIVE_GIT_DIR}")
 
 	# the current git repository's gitattributes file
 	local CORE_ATTRIBUTES
@@ -530,6 +530,28 @@ validate_cipher() {
 	fi
 }
 
+enable_repo_hooks() {
+	local repo_hooks_config_path
+	repo_hooks_config_path=$(git config --local core.hooksPath 2>/dev/null || true)
+	if [[ $repo_hooks_config_path && $repo_hooks_config_path != /dev/null ]]; then
+		return 0
+	fi
+
+	local answer=
+	if [[ $interactive ]]; then
+		printf 'Enable Git hooks for this repository? [Y/n] '
+		read -r answer
+	fi
+	if [[ $answer && ! $answer =~ $YES_REGEX ]]; then
+		GIT_HOOKS=''
+		return 0
+	fi
+
+	repo_hooks_config_path="$GIT_DIR/hooks"
+	git config --local core.hooksPath "$repo_hooks_config_path"
+	GIT_HOOKS=$repo_hooks_config_path
+}
+
 # ensure we have a cipher to encrypt with
 get_cipher() {
 	while [[ ! $cipher ]]; do
@@ -652,6 +674,9 @@ save_helper_scripts() {
 save_helper_hooks() {
 	if [[ $rekey ]]; then
 		return 0 # Bypass helper hook installation on rekey
+	fi
+	if [[ ! $GIT_HOOKS ]]; then
+		return 0
 	fi
 
 	# Install pre-commit-crypt hook script
@@ -1696,6 +1721,9 @@ count_dirty_files() {
 readonly GIT_DIRTY_FILES_BEFORE_INIT="$(count_dirty_files)"
 
 # perform function calls to configure transcrypt
+if [[ ! $rekey ]]; then
+	enable_repo_hooks
+fi
 get_cipher
 get_password
 set_password_env_for_context "$password" "$CONTEXT_CONFIG_GROUP"

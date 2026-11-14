@@ -107,6 +107,62 @@ SETUP_SKIP_INIT_TRANSCRYPT=1
   [[ "${output}" = *"  transcryptito -c aes-256-cbc -p 'abc 123'"* ]]
 }
 
+@test "init: enabling repository hooks is the first question and defaults to yes" {
+  run bash -c 'unset TRANSCRYPTITO_PASSWORD; printf "\n\nabc 123\ny\n" | ../transcryptito'
+
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" = 'Enable Git hooks for this repository? [Y/n] Encrypt using which cipher?'* ]]
+  [ "$(git config --local core.hooksPath)" = "$(cd .git && pwd -P)/hooks" ]
+  [ -x .git/hooks/pre-commit ]
+}
+
+@test "init: --yes enables repository hooks despite globally disabled hooks" {
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  git config --global core.hooksPath /dev/null
+
+  run init_transcrypt
+
+  [ "$status" -eq 0 ]
+  [ "$(git config --local core.hooksPath)" = "$(cd .git && pwd -P)/hooks" ]
+  [ "$(git config --global core.hooksPath)" = /dev/null ]
+  [ -x .git/hooks/pre-commit ]
+}
+
+@test "init: enables hooks when disabled in local config" {
+  git config --local core.hooksPath /dev/null
+
+  run bash -c 'printf "y\ny\n" | ../transcryptito --cipher=aes-256-cbc'
+
+  [ "$status" -eq 0 ]
+  [ "$(git config --local core.hooksPath)" = "$(cd .git && pwd -P)/hooks" ]
+  [ -x .git/hooks/pre-commit ]
+}
+
+@test "init: declining repository hooks continues without installing hooks" {
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  git config --global core.hooksPath /dev/null
+
+  run bash -c 'printf "n\ny\n" | ../transcryptito --cipher=aes-256-cbc'
+
+  [ "$status" -eq 0 ]
+  run git config --local core.hooksPath
+  [ "$status" -eq 1 ]
+  [ ! -e .git/hooks/pre-commit ]
+  [ ! -e .git/hooks/pre-commit-crypt ]
+  [ -f .git/crypt/transcrypt ]
+}
+
+@test "init: existing local hooks path does not prompt to enable hooks" {
+  git config --local core.hooksPath '.git/custom hooks'
+
+  run bash -c 'printf "y\n" | ../transcryptito --cipher=aes-256-cbc'
+
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'Enable Git hooks for this repository?'* ]]
+  [ "$(git config --local core.hooksPath)" = '.git/custom hooks' ]
+  [ -x '.git/custom hooks/pre-commit' ]
+}
+
 @test "init: transcrypt.openssl-path config setting defaults to 'openssl'" {
   init_transcrypt
   [ "$(git config --get transcrypt.openssl-path)" = 'openssl' ]

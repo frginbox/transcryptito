@@ -75,6 +75,13 @@ The repository must have no uncommitted changes when you initialize.
 Initialization installs a helper copy under `.git/crypt/` and a pre-commit
 hook that rejects accidental commits of unencrypted sensitive files.
 
+If hooks are not enabled in the repository's local Git config, the first
+question is `Enable Git hooks for this repository? [Y/n]`. Pressing Enter
+sets the local `core.hooksPath` to the repository's Git hooks directory,
+overriding global settings such as `/dev/null`. Answering `n` continues
+without installing hooks. `--yes` enables them automatically. Existing
+custom local hooks paths are preserved.
+
 ## 5. Encrypting files (daily use)
 
 Mark a file pattern for encryption, then commit normally — Git encrypts the
