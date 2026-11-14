@@ -85,6 +85,7 @@ load "$BATS_TEST_DIRNAME/_test_helper.bash"
 }
 
 @test "pre-commit: warn and don't clobber existing pre-commit hook on init" {
+  hooks_path=$(git config --local core.hooksPath)
   # Uninstall pre-existing transcrypt config from setup()
   run "$BATS_TEST_DIRNAME"/../transcryptito --uninstall --yes
 
@@ -94,8 +95,8 @@ load "$BATS_TEST_DIRNAME/_test_helper.bash"
   run "$BATS_TEST_DIRNAME"/../transcryptito --cipher=aes-256-cbc --password='abc 123' --yes
   [ "$status" -eq 0 ]
   [[ "${output}" = *"WARNING:"* ]]
-  [[ "${output}" = *"Cannot install Git pre-commit hook script because file already exists: .git/hooks/pre-commit"* ]]
-  [[ "${output}" = *"Please manually install the pre-commit script saved as: .git/hooks/pre-commit-crypt"* ]]
+  [[ "${output}" = *"Cannot install Git pre-commit hook script because file already exists: $hooks_path/pre-commit"* ]]
+  [[ "${output}" = *"Please manually install the pre-commit script saved as: $hooks_path/pre-commit-crypt"* ]]
 
   # Confirm pre-commit-crypt file is installed, but not copied to pre-commit
   run cat .git/hooks/pre-commit-crypt
@@ -111,12 +112,13 @@ load "$BATS_TEST_DIRNAME/_test_helper.bash"
 }
 
 @test "pre-commit: warn and don't delete customised pre-commit hook on uninstall" {
+  hooks_path=$(git config --local core.hooksPath)
   # Customise transcrypt's pre-commit hook
   echo "#" >> .git/hooks/pre-commit
 
   run "$BATS_TEST_DIRNAME"/../transcryptito --uninstall --yes
   [ "$status" -eq 0 ]
-  [[ "${output}" = *'WARNING: Cannot safely disable Git pre-commit hook .git/hooks/pre-commit please check it yourself'* ]]
+  [[ "${output}" = *"WARNING: Cannot safely disable Git pre-commit hook $hooks_path/pre-commit please check it yourself"* ]]
   [ -f .git/hooks/pre-commit ]
   [ ! -f .git/hooks/pre-commit-crypt ]
 }

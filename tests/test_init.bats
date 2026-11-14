@@ -107,6 +107,121 @@ SETUP_SKIP_INIT_TRANSCRYPT=1
   [[ "${output}" = *"  transcryptito -c aes-256-cbc -p 'abc 123'"* ]]
 }
 
+@test "init: enabling repository hooks is the first question and defaults to yes" {
+  run bash -c 'unset TRANSCRYPTITO_PASSWORD; printf "\n\nabc 123\ny\n" | ../transcryptito'
+
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" = 'Enable Git hooks for this repository? [Y/n] Encrypt using which cipher?'* ]]
+  [ "$(git config --local core.hooksPath)" = "$(cd .git && pwd -P)/hooks" ]
+  [ -x .git/hooks/pre-commit ]
+}
+
+@test "init: --yes enables repository hooks despite globally disabled hooks" {
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  git config --global core.hooksPath /dev/null
+
+  run init_transcrypt
+
+  [ "$status" -eq 0 ]
+  [ "$(git config --local core.hooksPath)" = "$(cd .git && pwd -P)/hooks" ]
+  [ "$(git config --global core.hooksPath)" = /dev/null ]
+  [ -x .git/hooks/pre-commit ]
+}
+
+@test "init: enables hooks when disabled in local config" {
+  git config --local core.hooksPath /dev/null
+
+  run bash -c 'printf "y\ny\n" | ../transcryptito --cipher=aes-256-cbc'
+
+  [ "$status" -eq 0 ]
+  [ "$(git config --local core.hooksPath)" = "$(cd .git && pwd -P)/hooks" ]
+  [ -x .git/hooks/pre-commit ]
+}
+
+@test "init: declining repository hooks confirms shared hooks before installing" {
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  shared_hooks="$BATS_TEST_TMPDIR/shared hooks"
+  git config --global core.hooksPath "$shared_hooks"
+
+  run bash -c 'printf "n\ny\ny\n" | ../transcryptito --cipher=aes-256-cbc'
+
+  [ "$status" -eq 0 ]
+  [[ "$output" = *'Using global/shared Git hooks is not recommended'* ]]
+  [[ "$output" = *"Install hooks in $shared_hooks anyway? [y/N]"* ]]
+  [ "$(git config --global core.hooksPath)" = "$shared_hooks" ]
+  [ -x "$shared_hooks/pre-commit" ]
+  [ -f "$shared_hooks/pre-commit-crypt" ]
+  [ ! -e .git/hooks/pre-commit ]
+  run git config --local core.hooksPath
+  [ "$status" -eq 1 ]
+
+  run "$shared_hooks/pre-commit"
+  [ "$status" -eq 0 ]
+}
+
+@test "init: shared hook wrapper uses each repository's own script" {
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  shared_hooks="$BATS_TEST_TMPDIR/shared hooks"
+  git config --global core.hooksPath "$shared_hooks"
+  run bash -c 'printf "n\ny\ny\n" | ../transcryptito --cipher=aes-256-cbc'
+  [ "$status" -eq 0 ]
+
+  other_repo="$BATS_TEST_TMPDIR/other repo"
+  git init "$other_repo"
+  mkdir -p "$other_repo/.git/crypt"
+  printf '#!/usr/bin/env bash\nprintf "other version: %%s\\n" "$1"\n' > "$other_repo/.git/crypt/transcrypt"
+  chmod +x "$other_repo/.git/crypt/transcrypt"
+
+  run bash -c 'cd "$1" && "$2/pre-commit"' _ "$other_repo" "$shared_hooks"
+  [ "$status" -eq 0 ]
+  [ "$output" = 'other version: pre_commit' ]
+}
+
+@test "init: declining shared hooks confirmation aborts before installing" {
+  run bash -c 'printf "n\nn\n" | ../transcryptito --cipher=aes-256-cbc'
+
+  [ "$status" -eq 1 ]
+  [[ "$output" = *'configuration has been aborted'* ]]
+  [ ! -e .git/crypt ]
+  [ ! -e .git/hooks/pre-commit ]
+  run git config --local core.hooksPath
+  [ "$status" -eq 1 ]
+}
+
+@test "init: shared hooks confirmation defaults to no" {
+  run bash -c 'printf "n\n\n" | ../transcryptito --cipher=aes-256-cbc'
+
+  [ "$status" -eq 1 ]
+  [[ "$output" = *'configuration has been aborted'* ]]
+  [ ! -e .git/crypt ]
+}
+
+@test "init: shared hooks confirmation rejects disabled hooks" {
+  export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+  git config --global core.hooksPath /dev/null
+
+  run bash -c 'printf "n\ny\n" | ../transcryptito --cipher=aes-256-cbc'
+
+  [ "$status" -eq 1 ]
+  [[ "$output" = *'Git hooks are disabled'* ]]
+  run git config --local core.hooksPath
+  [ "$status" -eq 1 ]
+  [ ! -e .git/hooks/pre-commit ]
+  [ ! -e .git/hooks/pre-commit-crypt ]
+  [ ! -e .git/crypt ]
+}
+
+@test "init: existing local hooks path does not prompt to enable hooks" {
+  git config --local core.hooksPath '.git/custom hooks'
+
+  run bash -c 'printf "y\n" | ../transcryptito --cipher=aes-256-cbc'
+
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'Enable Git hooks for this repository?'* ]]
+  [ "$(git config --local core.hooksPath)" = '.git/custom hooks' ]
+  [ -x '.git/custom hooks/pre-commit' ]
+}
+
 @test "init: transcrypt.openssl-path config setting defaults to 'openssl'" {
   init_transcrypt
   [ "$(git config --get transcrypt.openssl-path)" = 'openssl' ]
